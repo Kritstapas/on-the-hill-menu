@@ -327,13 +327,21 @@ function BookView({ pages, source, moreBelow }) {
 
     turnRef.current = turn;
 
+    function layoutBox() {
+      const mobile = window.matchMedia("(max-width: 720px)").matches;
+      if (!mobile) return { width: stage.clientWidth, height: stage.clientHeight };
+      const side = 108;
+      const width = Math.min(stage.clientWidth || window.innerWidth, window.innerWidth - side);
+      const height = Math.max(220, window.innerHeight - 194);
+      return { width, height };
+    }
+
     async function renderBook() {
-      const stageWidth = stage.clientWidth;
-      const stageHeight = stage.clientHeight;
-      if (stageWidth < 2 || stageHeight < 2) return;
+      const box = layoutBox();
+      if (box.width < 2 || box.height < 2) return;
       if (
-        Math.abs(stageWidth - laidOutWidth) < 24 &&
-        Math.abs(stageHeight - laidOutHeight) < 24 &&
+        Math.abs(box.width - laidOutWidth) < 24 &&
+        Math.abs(box.height - laidOutHeight) < 24 &&
         (arranging || sheets[indexRef.current])
       ) {
         return;
@@ -343,8 +351,8 @@ function BookView({ pages, source, moreBelow }) {
       arranging = true;
       try {
       cancelRenders();
-      laidOutWidth = stageWidth;
-      laidOutHeight = stageHeight;
+      laidOutWidth = box.width;
+      laidOutHeight = box.height;
 
       if (!pdfDoc && pageUrls.length === 0) {
         const response = await fetch(`${MENU_MANIFEST_PATH}?t=${Date.now()}`);
@@ -372,7 +380,7 @@ function BookView({ pages, source, moreBelow }) {
         setCount(pageUrls.length);
         const first = await ensureImage(0);
         if (cancelled || run !== generation || !first) return;
-        const frameScale = fitScale(first.naturalWidth, first.naturalHeight, stageWidth, stageHeight);
+        const frameScale = fitScale(first.naturalWidth, first.naturalHeight, box.width, box.height);
         frameWidth = Math.floor(first.naturalWidth * frameScale);
         frameHeight = Math.floor(first.naturalHeight * frameScale);
         page.style.width = `${frameWidth}px`;
@@ -409,7 +417,7 @@ function BookView({ pages, source, moreBelow }) {
       const first = await pdfDoc.getPage(1);
       if (cancelled || run !== generation) return;
       const firstBox = first.getViewport({ scale: 1 });
-      const frameScale = fitScale(firstBox.width, firstBox.height, stageWidth, stageHeight);
+      const frameScale = fitScale(firstBox.width, firstBox.height, box.width, box.height);
       frameWidth = Math.floor(firstBox.width * frameScale);
       frameHeight = Math.floor(firstBox.height * frameScale);
       page.style.width = `${frameWidth}px`;
