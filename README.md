@@ -8,9 +8,9 @@ Put the PDF in the `เมนู` folder. The filename can be anything. The site
 
 1. Add the new PDF to `เมนู`.
 2. Delete the old PDF. The original print file can stay if a smaller `-web.pdf` is present.
-3. If the PDF is larger than 80 MB, run `npm run web-menu`. This writes `เมนู/OnTheHillMenu-web.pdf`.
-4. Refresh the page. No code changes are needed.
-5. To publish the change, commit `OnTheHillMenu-web.pdf` and push to GitHub. Vercel redeploys from that push.
+3. Run `npm run web-menu`. This writes one sharp WebP per page in `เมนู/pages` and refreshes `เมนู/OnTheHillMenu-web.pdf` for the Open PDF button.
+4. Refresh the page. The viewer loads only the open page, and preloads the next one.
+5. To publish the change, commit `เมนู/pages` and `OnTheHillMenu-web.pdf`, then push to GitHub. Vercel redeploys from that push.
 
 GitHub and Vercel cannot accept the 212 MB print file. The web copy is the file the public site opens.
 

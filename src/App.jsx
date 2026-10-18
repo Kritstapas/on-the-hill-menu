@@ -86,6 +86,8 @@ export default function App() {
     let animToken = 0;
     let prefetchId = 0;
     let sheets = [];
+    let pageUrls = [];
+    let menuSrc = "";
     const pendingSheets = new Map();
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -104,7 +106,32 @@ export default function App() {
       }
     }
 
+    function ensureImage(index) {
+      if (index < 0 || index >= pageUrls.length) return Promise.resolve(null);
+      if (sheets[index]) return Promise.resolve(sheets[index]);
+      if (pendingSheets.has(index)) return pendingSheets.get(index);
+      const job = new Promise((resolve, reject) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.alt = "";
+        image.draggable = false;
+        image.onload = () => {
+          if (frameWidth) {
+            image.style.width = `${frameWidth}px`;
+            image.style.height = `${frameHeight}px`;
+          }
+          sheets[index] = image;
+          resolve(image);
+        };
+        image.onerror = () => reject(new Error("page image missing"));
+        image.src = pageUrls[index];
+      });
+      pendingSheets.set(index, job);
+      return job.finally(() => pendingSheets.delete(index));
+    }
+
     async function ensureSheet(index) {
+      if (pageUrls.length) return ensureImage(index);
       if (!pdfDoc || index < 0 || index >= countRef.current) return null;
       if (sheets[index]) return sheets[index];
       if (pendingSheets.has(index)) return pendingSheets.get(index);
@@ -330,19 +357,53 @@ export default function App() {
       laidOutWidth = stageWidth;
       laidOutHeight = stageHeight;
 
-      if (!pdfDoc) {
+      if (!pdfDoc && pageUrls.length === 0) {
         const response = await fetch(`${MENU_MANIFEST_PATH}?t=${Date.now()}`);
         if (!response.ok) throw new Error("menu manifest missing");
         const manifest = await response.json();
-        if (!manifest?.src) throw new Error("menu file missing");
+        if (!manifest?.src && !manifest?.pages?.length) throw new Error("menu file missing");
         if (cancelled || run !== generation) return;
 
-        const src = manifest.src.startsWith("/")
+        const src = manifest.src?.startsWith("/")
           ? `${import.meta.env.BASE_URL}${manifest.src.slice(1)}`
           : manifest.src;
-        setPdfUrl(src);
+        if (src) {
+          menuSrc = src;
+          setPdfUrl(src);
+        }
+        if (Array.isArray(manifest.pages) && manifest.pages.length > 0) {
+          pageUrls = manifest.pages.map((page) =>
+            page.startsWith("/") ? `${import.meta.env.BASE_URL}${page.slice(1)}` : page,
+          );
+        }
+      }
+
+      if (pageUrls.length > 0) {
+        countRef.current = pageUrls.length;
+        setCount(pageUrls.length);
+        const first = await ensureImage(0);
+        if (cancelled || run !== generation || !first) return;
+        const frameScale = fitScale(first.naturalWidth, first.naturalHeight, stageWidth, stageHeight);
+        frameWidth = Math.floor(first.naturalWidth * frameScale);
+        frameHeight = Math.floor(first.naturalHeight * frameScale);
+        book.style.width = `${frameWidth}px`;
+        book.style.height = `${frameHeight}px`;
+        for (const image of sheets) {
+          if (!image) continue;
+          image.style.width = `${frameWidth}px`;
+          image.style.height = `${frameHeight}px`;
+        }
+        await ensureImage(indexRef.current);
+        if (cancelled || run !== generation) return;
+        if (!busyRef.current && !interacting) showIdle();
+        setStatus("ready");
+        scheduleNeighbors(indexRef.current);
+        return;
+      }
+
+      if (!pdfDoc) {
         loadingTask = getDocument({
-          url: src,
+          url: menuSrc,
           cMapUrl: `${PDFJS_ASSET_BASE}cmaps/`,
           cMapPacked: true,
           standardFontDataUrl: `${PDFJS_ASSET_BASE}standard_fonts/`,

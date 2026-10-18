@@ -12,6 +12,7 @@ dist
 public/pdfjs/
 public/menu.json
 public/menus/
+public/menu-pages/
 
 # The print PDF is too large for GitHub and Vercel. The site ships the -web.pdf copy.
 เมนู/*.pdf
@@ -29,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.upload-hold/

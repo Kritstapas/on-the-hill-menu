@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+public/pdfjs
+public/menu.json
+public/menus
+เมนู/OnTheHillMenu.pdf
+.vscode
+.idea
+*.local
+logs
+*.log
+.upload-hold

@@ -4,7 +4,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const menuDir = resolve("เมนู");
+const pagesDir = resolve(menuDir, "pages");
 const publishedDir = resolve("public/menus");
+const publishedPagesDir = resolve("public/menu-pages");
 const manifestPath = resolve("public/menu.json");
 let publishTimer = 0;
 let publishing = false;
@@ -36,12 +38,15 @@ function publishMenu() {
     cpSync(chosen.fullPath, destination);
   }
 
+  const pages = publishPages(version);
+
   writeFileSync(
     manifestPath,
     `${JSON.stringify(
       {
         src: `/menus/${fileName}?v=${version}`,
         name: chosen.name,
+        pages,
       },
       null,
       2,
@@ -57,6 +62,34 @@ function publishMenu() {
       }
     }
   }
+}
+
+function publishPages(version) {
+  if (!existsSync(pagesDir)) return [];
+  mkdirSync(publishedPagesDir, { recursive: true });
+  const names = readdirSync(pagesDir)
+    .filter((name) => name.toLowerCase().endsWith(".webp"))
+    .sort();
+  const urls = names.map((name) => {
+    const destination = resolve(publishedPagesDir, name);
+    const source = resolve(pagesDir, name);
+    if (!existsSync(destination) || statSync(destination).size !== statSync(source).size) {
+      cpSync(source, destination);
+    }
+    return `/menu-pages/${name}?v=${version}`;
+  });
+
+  for (const name of readdirSync(publishedPagesDir)) {
+    if (!names.includes(name)) {
+      try {
+        unlinkSync(resolve(publishedPagesDir, name));
+      } catch {
+        // The browser may still be reading the previous image.
+      }
+    }
+  }
+
+  return urls;
 }
 
 function schedulePublish() {
@@ -78,7 +111,10 @@ function menuFolder() {
   const isMenuPdf = (file) => {
     const normalized = file.replaceAll("\\", "/").toLowerCase();
     const dir = menuDir.replaceAll("\\", "/").toLowerCase();
-    return normalized.startsWith(`${dir}/`) && normalized.endsWith(".pdf");
+    return (
+      normalized.startsWith(`${dir}/`) &&
+      (normalized.endsWith(".pdf") || normalized.endsWith(".webp"))
+    );
   };
 
   return {
@@ -99,6 +135,7 @@ function menuFolder() {
     },
     configureServer(server) {
       server.watcher.add(menuDir);
+      if (existsSync(pagesDir)) server.watcher.add(pagesDir);
       server.watcher.on("all", (event, file) => {
         if (isMenuPdf(file)) schedulePublish();
       });
