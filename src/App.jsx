@@ -22,26 +22,17 @@ function dragAngle(dx, width, mode) {
   return Math.max(-8, Math.min(8, dx / 34));
 }
 
-function easePage(t) {
-  if (t < 0.16) return (t / 0.16) ** 1.7 * 0.07;
-  if (t < 0.7) {
-    const u = (t - 0.16) / 0.54;
-    return 0.07 + (1 - (1 - u) ** 2.15) * 0.84;
-  }
-  const u = (t - 0.7) / 0.3;
-  return 0.91 + (1 - (1 - u) ** 2) * 0.09;
-}
-
-function easeRelease(t) {
-  return 1 - (1 - t) ** 2.6;
+function easeTurn(t) {
+  return t * t * (3 - 2 * t);
 }
 
 function fitScale(pageWidth, pageHeight, boxWidth, boxHeight) {
   return Math.min(boxWidth / pageWidth, boxHeight / pageHeight);
 }
 
-function BookView({ pages, source, label, moreBelow }) {
+function BookView({ pages, source, moreBelow }) {
   const stageRef = useRef(null);
+  const pageRef = useRef(null);
   const shellRef = useRef(null);
   const bookRef = useRef(null);
   const baseRef = useRef(null);
@@ -57,12 +48,12 @@ function BookView({ pages, source, label, moreBelow }) {
   const [status, setStatus] = useState("loading");
   const [index, setIndex] = useState(0);
   const [count, setCount] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
 
   useEffect(() => {
     const stage = stageRef.current;
+    const page = pageRef.current;
     const shell = shellRef.current;
     const book = bookRef.current;
     const base = baseRef.current;
@@ -179,10 +170,15 @@ function BookView({ pages, source, label, moreBelow }) {
     function pose(angle) {
       leafAngle = angle;
       const fold = Math.sin((Math.min(Math.abs(angle), 180) * Math.PI) / 180);
-      const lift = fold * 86;
-      const rise = fold * -12;
-      const bow = fold * 2.2;
-      leaf.style.transform = `translate3d(0, ${rise}px, ${lift}px) rotateZ(${bow}deg) rotateY(${angle}deg)`;
+      const lift = fold * 36;
+      const rise = fold * -8;
+      leaf.style.transform = `translate3d(0, ${rise}px, ${lift}px) rotateY(${angle}deg)`;
+    }
+
+    function frame() {
+      return new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
     }
 
     function stopMotion() {
@@ -209,11 +205,11 @@ function BookView({ pages, source, label, moreBelow }) {
         return Promise.resolve();
       }
 
-      const flung = Math.sign(delta) === Math.sign(velocity) && Math.abs(velocity) > 0.04;
-      const duration = flung
-        ? Math.min(740, Math.max(280, distance / Math.max(Math.abs(velocity), 0.2)))
-        : Math.min(920, Math.max(680, 520 + distance));
-      const ease = flung ? easeRelease : easePage;
+      const speed = Math.abs(velocity);
+      const duration = speed > 0.35
+        ? Math.min(420, Math.max(260, 340 - speed * 40))
+        : Math.min(520, Math.max(400, 360 + distance * 0.45));
+      const ease = easeTurn;
       const start = performance.now();
 
       return new Promise((resolve) => {
@@ -252,26 +248,18 @@ function BookView({ pages, source, label, moreBelow }) {
       indexRef.current = nextIndex;
       place(front, sheets[nextIndex]);
       place(base, sheets[nextIndex + 1]);
+      leaf.style.visibility = "visible";
       setIndex(nextIndex);
-      requestAnimationFrame(() => {
-        if (leafAngle === 0) leaf.style.visibility = "visible";
-      });
-    }
-
-    function afterPaint() {
-      return new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
     }
 
     function scheduleNeighbors(current) {
       window.clearTimeout(prefetchId);
       prefetchId = window.setTimeout(() => {
         prefetchId = 0;
-        if (cancelled || busyRef.current) return;
+        if (cancelled) return;
         void ensureSheet(current + 1);
         void ensureSheet(current - 1);
-      }, 50);
+      }, 0);
     }
 
     function applyView(animate) {
@@ -308,38 +296,32 @@ function BookView({ pages, source, label, moreBelow }) {
       if (nextIndex < 0 || nextIndex >= countRef.current) return;
 
       busyRef.current = true;
-      setBusy(true);
       try {
-        await ensureSheet(current);
-        await ensureSheet(nextIndex);
         panRef.current = { x: 0, y: 0 };
         applyView(false);
+        const [currentSheet, nextSheet] = await Promise.all([
+          ensureSheet(current),
+          ensureSheet(nextIndex),
+        ]);
+        if (cancelled) return;
         if (direction > 0) {
-          place(front, sheets[current]);
-          place(base, sheets[nextIndex]);
+          place(front, currentSheet);
+          place(base, nextSheet);
           setLeaf(0);
-          leaf.classList.add("is-lifted");
-          await afterPaint();
-          await animateTo(-180);
-          if (!cancelled) settleTo(nextIndex);
         } else {
-          place(base, sheets[current]);
-          place(front, sheets[nextIndex]);
+          place(base, currentSheet);
+          place(front, nextSheet);
           setLeaf(-180);
-          leaf.classList.add("is-lifted");
-          await afterPaint();
-          await animateTo(0);
-          if (!cancelled) {
-            indexRef.current = nextIndex;
-            leaf.classList.remove("is-lifted");
-            setIndex(nextIndex);
-            scheduleNeighbors(nextIndex);
-          }
         }
-        if (!cancelled && direction > 0) scheduleNeighbors(indexRef.current);
+        leaf.classList.add("is-lifted");
+        await frame();
+        await animateTo(direction > 0 ? -180 : 0);
+        if (!cancelled) {
+          settleTo(nextIndex);
+          scheduleNeighbors(nextIndex);
+        }
       } finally {
         busyRef.current = false;
-        setBusy(false);
       }
     }
 
@@ -393,8 +375,9 @@ function BookView({ pages, source, label, moreBelow }) {
         const frameScale = fitScale(first.naturalWidth, first.naturalHeight, stageWidth, stageHeight);
         frameWidth = Math.floor(first.naturalWidth * frameScale);
         frameHeight = Math.floor(first.naturalHeight * frameScale);
-        book.style.width = `${frameWidth}px`;
-        book.style.height = `${frameHeight}px`;
+        page.style.width = `${frameWidth}px`;
+        page.style.height = `${frameHeight}px`;
+        stage.classList.toggle("is-wide", frameWidth > frameHeight);
         for (const image of sheets) {
           if (!image) continue;
           image.style.width = `${frameWidth}px`;
@@ -429,8 +412,9 @@ function BookView({ pages, source, label, moreBelow }) {
       const frameScale = fitScale(firstBox.width, firstBox.height, stageWidth, stageHeight);
       frameWidth = Math.floor(firstBox.width * frameScale);
       frameHeight = Math.floor(firstBox.height * frameScale);
-      book.style.width = `${frameWidth}px`;
-      book.style.height = `${frameHeight}px`;
+      page.style.width = `${frameWidth}px`;
+      page.style.height = `${frameHeight}px`;
+      stage.classList.toggle("is-wide", frameWidth > frameHeight);
 
       const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
       const pixelBudget = 900000;
@@ -606,13 +590,11 @@ function BookView({ pages, source, label, moreBelow }) {
       if (gesture !== "next" && gesture !== "prev" && gesture !== "resist") return;
 
       busyRef.current = true;
-      setBusy(true);
       try {
         if (gesture === "next") {
           const commit = dx <= -SWIPE_THRESHOLD || (dx < -16 && motion.pxPerMs < -FLICK_PX_PER_MS);
-          if (commit) await ensureSheet(indexRef.current + 1);
+          if (commit && !sheets[indexRef.current + 1]) await ensureSheet(indexRef.current + 1);
           if (cancelled) return;
-          await afterPaint();
           await animateTo(commit ? -180 : 0, motion.degPerMs);
           if (cancelled) return;
           if (commit) {
@@ -621,26 +603,20 @@ function BookView({ pages, source, label, moreBelow }) {
           } else leaf.classList.remove("is-lifted");
         } else if (gesture === "prev") {
           const commit = dx >= SWIPE_THRESHOLD || (dx > 16 && motion.pxPerMs > FLICK_PX_PER_MS);
-          if (commit) await ensureSheet(indexRef.current - 1);
+          if (commit && !sheets[indexRef.current - 1]) await ensureSheet(indexRef.current - 1);
           if (cancelled) return;
-          await afterPaint();
           await animateTo(commit ? 0 : -180, motion.degPerMs);
           if (cancelled) return;
           if (commit) {
-            indexRef.current -= 1;
-            leaf.classList.remove("is-lifted");
-            setIndex(indexRef.current);
+            settleTo(indexRef.current - 1);
             scheduleNeighbors(indexRef.current);
-          } else {
-            settleTo(indexRef.current);
-          }
+          } else settleTo(indexRef.current);
         } else {
           await animateTo(0, motion.degPerMs);
           leaf.classList.remove("is-lifted");
         }
       } finally {
         busyRef.current = false;
-        setBusy(false);
       }
     };
 
@@ -703,25 +679,23 @@ function BookView({ pages, source, label, moreBelow }) {
         </p>
       )}
       <div ref={stageRef} className="stage">
-        <div ref={shellRef} className="shell">
-          <div ref={bookRef} className="book">
-            <div ref={baseRef} className="sheet base" />
-            <div ref={leafRef} className="leaf">
-              <div ref={frontRef} className="face front" />
-              <div className="face back" />
+        <div ref={pageRef} className="page">
+          <div ref={shellRef} className="shell">
+            <div ref={bookRef} className="book">
+              <div ref={baseRef} className="sheet base" />
+              <div ref={leafRef} className="leaf">
+                <div ref={frontRef} className="face front" />
+                <div className="face back" />
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      {status === "ready" && (
-        <>
-          {count > 1 && (
+          {status === "ready" && count > 1 && (
             <>
               <button
                 type="button"
                 className="turn prev"
                 onClick={() => turnRef.current(-1)}
-                disabled={busy || index === 0}
+                disabled={index === 0}
                 aria-label="Previous page"
               >
                 ‹
@@ -730,14 +704,17 @@ function BookView({ pages, source, label, moreBelow }) {
                 type="button"
                 className="turn next"
                 onClick={() => turnRef.current(1)}
-                disabled={busy || index === count - 1}
+                disabled={index === count - 1}
                 aria-label="Next page"
               >
                 ›
               </button>
             </>
           )}
-          <footer className="foot">
+        </div>
+      </div>
+      {status === "ready" && (
+        <footer className="foot">
             <div className="zoom">
               <button type="button" onClick={() => zoomApiRef.current(-1)} disabled={zoomLevel <= 1} aria-label="Zoom out">
                 −
@@ -752,7 +729,6 @@ function BookView({ pages, source, label, moreBelow }) {
                 Open PDF
               </a>
             </div>
-            <p className="volume-label">{label}</p>
             <p className="hint">
               {zoomed
                 ? "Drag to look around. Press Fit to swipe between pages."
@@ -766,7 +742,6 @@ function BookView({ pages, source, label, moreBelow }) {
               </p>
             )}
           </footer>
-        </>
       )}
     </section>
   );
@@ -812,7 +787,6 @@ export default function App() {
           key={book.id || book.title}
           pages={book.pages}
           source={book.src}
-          label={book.title || book.name || "Menu"}
           moreBelow={index === 0 && books.length > 1}
         />
       ))}

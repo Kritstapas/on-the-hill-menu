@@ -22,6 +22,7 @@ main {
   height: 100dvh;
   overflow-x: hidden;
   overflow-y: auto;
+  scroll-snap-type: y mandatory;
   background:
     linear-gradient(180deg, rgba(10, 28, 36, 0.28), rgba(10, 28, 36, 0.05) 28%, rgba(7, 22, 28, 0.38)),
     url("/karon-view.jpg") center / cover no-repeat fixed;
@@ -29,7 +30,13 @@ main {
 
 .volume {
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
+  padding-top: 92px;
+  overflow: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .topbar,
@@ -78,13 +85,32 @@ main {
 }
 
 .stage {
-  position: absolute;
-  inset: 92px 48px 108px;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px 72px 16px;
   overflow: hidden;
   touch-action: pan-y;
+}
+
+.stage.is-wide {
+  align-items: flex-end;
+}
+
+.page {
+  position: relative;
+  flex: none;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.shell,
+.book {
+  width: 100%;
+  height: 100%;
 }
 
 .shell {
@@ -119,9 +145,6 @@ main {
   transform-origin: left center;
   transform-style: preserve-3d;
   transform: rotateY(0deg);
-}
-
-.leaf.is-lifted {
   will-change: transform;
 }
 
@@ -137,19 +160,9 @@ main {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(90deg, rgba(28, 20, 12, 0.2), transparent 26%),
-    linear-gradient(270deg, rgba(255, 255, 255, 0.22), transparent 16%);
-  opacity: 0;
+  background: linear-gradient(90deg, rgba(28, 20, 12, 0.16), transparent 22%);
+  opacity: 0.65;
   pointer-events: none;
-}
-
-.leaf.is-lifted .face.front {
-  box-shadow: -18px 26px 30px rgba(0, 0, 0, 0.22);
-}
-
-.leaf.is-lifted .face.front::after {
-  opacity: 1;
 }
 
 .face.back {
@@ -190,6 +203,7 @@ main {
 .turn {
   position: absolute;
   top: 50%;
+  z-index: 4;
   width: 36px;
   height: 36px;
   margin: 0;
@@ -206,22 +220,21 @@ main {
 }
 
 .turn.prev {
-  left: 14px;
+  left: -52px;
 }
 
 .turn.next {
-  right: 14px;
+  right: -52px;
 }
 
 .foot {
-  position: absolute;
-  right: 16px;
-  bottom: 14px;
-  left: 16px;
+  position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  margin: 0 16px 14px;
   pointer-events: none;
 }
 
@@ -262,15 +275,6 @@ main {
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
-.volume-label {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-align: center;
-  text-transform: uppercase;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
-}
-
 .hint {
   font-size: 13px;
 }
@@ -290,28 +294,38 @@ main {
     height: 52px;
   }
 
+  .volume {
+    padding-top: calc(70px + env(safe-area-inset-top));
+  }
+
   .stage {
-    inset: calc(74px + env(safe-area-inset-top)) 0 calc(112px + env(safe-area-inset-bottom));
-  }
-
-  .turn {
-    width: 42px;
-    height: 42px;
-  }
-
-  .turn.prev {
-    left: max(6px, env(safe-area-inset-left));
-  }
-
-  .turn.next {
-    right: max(6px, env(safe-area-inset-right));
+    padding: 8px 54px 108px;
   }
 
   .foot {
-    right: 8px;
+    position: absolute;
+    right: 12px;
     bottom: max(8px, env(safe-area-inset-bottom));
-    left: 8px;
+    left: 12px;
+    margin: 0;
+  }
+
+  .turn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .turn.prev {
+    left: -46px;
+  }
+
+  .turn.next {
+    right: -46px;
+  }
+
+  .foot {
     gap: 4px;
+    margin: 0 12px max(10px, env(safe-area-inset-bottom));
   }
 
   .hint {

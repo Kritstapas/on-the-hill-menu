@@ -4,13 +4,12 @@ A single-page website that shows the restaurant menu as soon as it opens. There 
 
 ## Replace the menu
 
-Put the PDF in the `เมนู` folder. The filename can be anything. The site reads the newest PDF that is small enough to publish (80 MB or less).
+The three books live in matching folders and stack in this order: `เมนู/Menu 1`, `เมนู/Menu 2`, and `เมนู/Menu 3`. Each folder has the PDF for Open PDF and a `pages` folder of WebP images.
 
-1. Add the new PDF to `เมนู`.
-2. Delete the old PDF. The original print file can stay if a smaller `-web.pdf` is present.
-3. Run `npm run web-menu`. This writes one sharp WebP per page in `เมนู/pages` and refreshes `เมนู/OnTheHillMenu-web.pdf` for the Open PDF button.
-4. Refresh the page. The viewer loads only the open page, and preloads the next one.
-5. To publish the change, commit `เมนู/pages` and `OnTheHillMenu-web.pdf`, then push to GitHub. Vercel redeploys from that push.
+1. Add the new PDF to that book's folder. The filename can be anything.
+2. Run `npm run web-menu`. This writes one sharp WebP per page into each book's `pages` folder. A PDF over 45 MB also gets a smaller `-web.pdf` for the Open PDF button.
+3. Refresh the page. The viewer loads only the open page, and preloads the next one.
+4. To publish the change, commit that book's folder, then push to GitHub. Vercel redeploys from that push.
 
 GitHub and Vercel cannot accept the 212 MB print file. The web copy is the file the public site opens.
 

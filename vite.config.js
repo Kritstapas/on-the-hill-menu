@@ -4,29 +4,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const menuDir = resolve("เมนู");
-const pagesDir = resolve(menuDir, "pages");
 const publishedDir = resolve("public/menus");
 const publishedPagesDir = resolve("public/menu-pages");
 const manifestPath = resolve("public/menu.json");
+const hostLimit = 80 * 1024 * 1024;
 const bookSources = [
-  {
-    id: "menu",
-    title: "Menu",
-    pdfPath: resolve(menuDir, "OnTheHillMenu-web.pdf"),
-    pagesPath: pagesDir,
-  },
-  {
-    id: "overview",
-    title: "Overview",
-    pdfPath: resolve(menuDir, "overview", "Overview-new.pdf"),
-    pagesPath: resolve(menuDir, "overview", "pages"),
-  },
-  {
-    id: "last-minutes",
-    title: "The Last Minutes",
-    pdfPath: resolve(menuDir, "last-minutes", "The Last Minutes.pdf"),
-    pagesPath: resolve(menuDir, "last-minutes", "pages"),
-  },
+  { id: "menu", title: "Menu 1", dir: resolve(menuDir, "Menu 1") },
+  { id: "overview", title: "Menu 2", dir: resolve(menuDir, "Menu 2") },
+  { id: "last-minutes", title: "Menu 3", dir: resolve(menuDir, "Menu 3") },
 ];
 let publishTimer = 0;
 let publishing = false;
@@ -35,7 +20,13 @@ function publishMenu() {
   mkdirSync(menuDir, { recursive: true });
   mkdirSync(publishedDir, { recursive: true });
 
-  const books = bookSources.filter((book) => existsSync(book.pdfPath)).map((book) => publishBook(book));
+  const books = bookSources
+    .map((book) => {
+      const pdfPath = choosePdf(book.dir);
+      if (!pdfPath) return null;
+      return publishBook({ ...book, pdfPath, pagesPath: resolve(book.dir, "pages") });
+    })
+    .filter(Boolean);
   const first = books[0];
   if (!first) {
     writeFileSync(manifestPath, `${JSON.stringify({ src: null, name: null, pages: [], books: [] }, null, 2)}\n`);
@@ -55,6 +46,21 @@ function publishMenu() {
       2,
     )}\n`,
   );
+}
+
+function choosePdf(dir) {
+  if (!existsSync(dir)) return null;
+  const pdfs = readdirSync(dir)
+    .filter((name) => name.toLowerCase().endsWith(".pdf"))
+    .map((name) => {
+      const fullPath = resolve(dir, name);
+      return { name, fullPath, mtime: statSync(fullPath).mtimeMs, size: statSync(fullPath).size };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+  const web = pdfs.find((pdf) => pdf.name.toLowerCase().endsWith("-web.pdf"));
+  if (web) return web.fullPath;
+  const small = pdfs.find((pdf) => pdf.size <= hostLimit);
+  return (small || pdfs[0])?.fullPath ?? null;
 }
 
 function publishBook(book) {
@@ -146,7 +152,7 @@ function menuFolder() {
     configureServer(server) {
       server.watcher.add(menuDir);
       for (const book of bookSources) {
-        if (existsSync(book.pagesPath)) server.watcher.add(book.pagesPath);
+        if (existsSync(book.dir)) server.watcher.add(book.dir);
       }
       server.watcher.on("all", (event, file) => {
         if (isMenuPdf(file)) schedulePublish();

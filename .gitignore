@@ -14,9 +14,9 @@ public/menu.json
 public/menus/
 public/menu-pages/
 
-# The print PDF is too large for GitHub and Vercel. The site ships the -web.pdf copy.
-เมนู/*.pdf
-!เมนู/*-web.pdf
+# The print PDF is too large for GitHub and Vercel. The menu book ships its -web.pdf copy.
+เมนู/Menu 1/*.pdf
+!เมนู/Menu 1/*-web.pdf
 dist-ssr
 *.local
 
