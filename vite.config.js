@@ -12,6 +12,7 @@ const bookSources = [
   { id: "menu", title: "Menu 1", dir: resolve(menuDir, "Menu 1") },
   { id: "overview", title: "Menu 2", dir: resolve(menuDir, "Menu 2") },
   { id: "last-minutes", title: "Menu 3", dir: resolve(menuDir, "Menu 3") },
+  { id: "menu-4", title: "Menu 4", dir: resolve(menuDir, "Menu 4") },
 ];
 let publishTimer = 0;
 let publishing = false;

@@ -4,7 +4,7 @@ A single-page website that shows the restaurant menu as soon as it opens. There 
 
 ## Replace the menu
 
-The three books live in matching folders and stack in this order: `เมนู/Menu 1`, `เมนู/Menu 2`, and `เมนู/Menu 3`. Each folder has the PDF for Open PDF and a `pages` folder of WebP images.
+The four books live in matching folders and stack in this order: `เมนู/Menu 1`, `เมนู/Menu 2`, `เมนู/Menu 3`, and `เมนู/Menu 4`. Each folder has the PDF for Open PDF and a `pages` folder of WebP images.
 
 1. Add the new PDF to that book's folder. The filename can be anything.
 2. Run `npm run web-menu`. This writes one sharp WebP per page into each book's `pages` folder. A PDF over 45 MB also gets a smaller `-web.pdf` for the Open PDF button.
