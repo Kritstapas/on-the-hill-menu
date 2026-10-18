@@ -5,7 +5,7 @@ import { PDFDocument } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const menuDir = resolve("เมนู");
-const bookDirs = ["Menu 1", "Menu 2", "Menu 3", "Menu 4"];
+const bookDirs = ["Menu 1", "Menu 2", "Menu 3"];
 const longEdge = 2000;
 const jpegQuality = 80;
 const webpQuality = 82;
