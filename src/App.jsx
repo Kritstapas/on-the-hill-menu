@@ -328,10 +328,20 @@ function BookView({ pages, source, moreBelow }) {
     turnRef.current = turn;
 
     function layoutBox() {
+      const style = getComputedStyle(stage);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
       const mobile = window.matchMedia("(max-width: 720px)").matches;
-      if (!mobile) return { width: stage.clientWidth, height: stage.clientHeight };
-      const side = 108;
-      const width = Math.min(stage.clientWidth || window.innerWidth, window.innerWidth - side);
+      if (!mobile) {
+        return {
+          width: Math.max(1, stage.clientWidth - padX),
+          height: Math.max(1, stage.clientHeight - padY),
+        };
+      }
+      const width = Math.max(
+        1,
+        Math.min((stage.clientWidth || window.innerWidth) - padX, window.innerWidth - 108),
+      );
       const height = Math.max(220, window.innerHeight - 194);
       return { width, height };
     }
@@ -642,6 +652,8 @@ function BookView({ pages, source, moreBelow }) {
       if (event.key === "ArrowLeft") turn(-1);
     };
 
+    const stageObserver = new ResizeObserver(() => onResize());
+    stageObserver.observe(stage);
     window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKey);
     stage.addEventListener("pointerdown", onPointerDown);
@@ -657,6 +669,7 @@ function BookView({ pages, source, moreBelow }) {
       stopMotion();
       window.clearTimeout(prefetchId);
       window.clearTimeout(resizeTimer);
+      stageObserver.disconnect();
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKey);
       stage.removeEventListener("pointerdown", onPointerDown);
