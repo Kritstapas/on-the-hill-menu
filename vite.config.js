@@ -8,6 +8,26 @@ const pagesDir = resolve(menuDir, "pages");
 const publishedDir = resolve("public/menus");
 const publishedPagesDir = resolve("public/menu-pages");
 const manifestPath = resolve("public/menu.json");
+const bookSources = [
+  {
+    id: "menu",
+    title: "Menu",
+    pdfPath: resolve(menuDir, "OnTheHillMenu-web.pdf"),
+    pagesPath: pagesDir,
+  },
+  {
+    id: "overview",
+    title: "Overview",
+    pdfPath: resolve(menuDir, "overview", "Overview-new.pdf"),
+    pagesPath: resolve(menuDir, "overview", "pages"),
+  },
+  {
+    id: "last-minutes",
+    title: "The Last Minutes",
+    pdfPath: resolve(menuDir, "last-minutes", "The Last Minutes.pdf"),
+    pagesPath: resolve(menuDir, "last-minutes", "pages"),
+  },
+];
 let publishTimer = 0;
 let publishing = false;
 
@@ -15,74 +35,64 @@ function publishMenu() {
   mkdirSync(menuDir, { recursive: true });
   mkdirSync(publishedDir, { recursive: true });
 
-  const pdfs = readdirSync(menuDir)
-    .filter((name) => name.toLowerCase().endsWith(".pdf"))
-    .map((name) => {
-      const fullPath = resolve(menuDir, name);
-      return { name, fullPath, mtime: statSync(fullPath).mtimeMs, size: statSync(fullPath).size };
-    })
-    .sort((a, b) => b.mtime - a.mtime);
-
-  if (pdfs.length === 0) {
-    writeFileSync(manifestPath, `${JSON.stringify({ src: null, name: null }, null, 2)}\n`);
+  const books = bookSources.filter((book) => existsSync(book.pdfPath)).map((book) => publishBook(book));
+  const first = books[0];
+  if (!first) {
+    writeFileSync(manifestPath, `${JSON.stringify({ src: null, name: null, pages: [], books: [] }, null, 2)}\n`);
     return;
   }
-
-  const hostLimit = 80 * 1024 * 1024;
-  const publishable = pdfs.filter((pdf) => pdf.size <= hostLimit);
-  const chosen = (publishable.length > 0 ? publishable : pdfs)[0];
-  const version = Math.round(chosen.mtime);
-  const fileName = `menu-${version}.pdf`;
-  const destination = resolve(publishedDir, fileName);
-  if (!existsSync(destination) || statSync(destination).size !== chosen.size) {
-    cpSync(chosen.fullPath, destination);
-  }
-
-  const pages = publishPages(version);
 
   writeFileSync(
     manifestPath,
     `${JSON.stringify(
       {
-        src: `/menus/${fileName}?v=${version}`,
-        name: chosen.name,
-        pages,
+        src: first.src,
+        name: first.name,
+        pages: first.pages,
+        books,
       },
       null,
       2,
     )}\n`,
   );
-
-  for (const name of readdirSync(publishedDir)) {
-    if (name !== fileName && name.toLowerCase().endsWith(".pdf")) {
-      try {
-        unlinkSync(resolve(publishedDir, name));
-      } catch {
-        // The browser may still have the previous file open.
-      }
-    }
-  }
 }
 
-function publishPages(version) {
-  if (!existsSync(pagesDir)) return [];
-  mkdirSync(publishedPagesDir, { recursive: true });
-  const names = readdirSync(pagesDir)
+function publishBook(book) {
+  const version = Math.round(statSync(book.pdfPath).mtimeMs);
+  const fileName = `${book.id}.pdf`;
+  const destination = resolve(publishedDir, fileName);
+  if (!existsSync(destination) || statSync(destination).size !== statSync(book.pdfPath).size) {
+    cpSync(book.pdfPath, destination);
+  }
+  return {
+    id: book.id,
+    title: book.title,
+    name: book.title,
+    src: `/menus/${fileName}?v=${version}`,
+    pages: publishPages(book.pagesPath, book.id, version),
+  };
+}
+
+function publishPages(sourceDir, bookId, version) {
+  if (!existsSync(sourceDir)) return [];
+  const destinationDir = resolve(publishedPagesDir, bookId);
+  mkdirSync(destinationDir, { recursive: true });
+  const names = readdirSync(sourceDir)
     .filter((name) => name.toLowerCase().endsWith(".webp"))
     .sort();
   const urls = names.map((name) => {
-    const destination = resolve(publishedPagesDir, name);
-    const source = resolve(pagesDir, name);
+    const destination = resolve(destinationDir, name);
+    const source = resolve(sourceDir, name);
     if (!existsSync(destination) || statSync(destination).size !== statSync(source).size) {
       cpSync(source, destination);
     }
-    return `/menu-pages/${name}?v=${version}`;
+    return `/menu-pages/${bookId}/${name}?v=${version}`;
   });
 
-  for (const name of readdirSync(publishedPagesDir)) {
+  for (const name of readdirSync(destinationDir)) {
     if (!names.includes(name)) {
       try {
-        unlinkSync(resolve(publishedPagesDir, name));
+        unlinkSync(resolve(destinationDir, name));
       } catch {
         // The browser may still be reading the previous image.
       }
@@ -135,7 +145,9 @@ function menuFolder() {
     },
     configureServer(server) {
       server.watcher.add(menuDir);
-      if (existsSync(pagesDir)) server.watcher.add(pagesDir);
+      for (const book of bookSources) {
+        if (existsSync(book.pagesPath)) server.watcher.add(book.pagesPath);
+      }
       server.watcher.on("all", (event, file) => {
         if (isMenuPdf(file)) schedulePublish();
       });

@@ -40,7 +40,7 @@ function fitScale(pageWidth, pageHeight, boxWidth, boxHeight) {
   return Math.min(boxWidth / pageWidth, boxHeight / pageHeight);
 }
 
-export default function App() {
+function BookView({ pages, source, label, moreBelow }) {
   const stageRef = useRef(null);
   const shellRef = useRef(null);
   const bookRef = useRef(null);
@@ -92,6 +92,13 @@ export default function App() {
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     leaf.style.transition = "none";
+    pageUrls = pages.map((page) =>
+      page.startsWith("/") ? `${import.meta.env.BASE_URL}${page.slice(1)}` : page,
+    );
+    if (source) {
+      menuSrc = source.startsWith("/") ? `${import.meta.env.BASE_URL}${source.slice(1)}` : source;
+      setPdfUrl(menuSrc);
+    }
 
     function cancelRenders() {
       for (const task of renderTasks) task.cancel();
@@ -499,8 +506,8 @@ export default function App() {
     const onPointerDown = (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      stage.setPointerCapture(event.pointerId);
       if (pointers.size >= 2) {
+        stage.setPointerCapture(event.pointerId);
         if (mode === "next" || mode === "prev" || mode === "resist") {
           setLeaf(0);
           leaf.classList.remove("is-lifted");
@@ -544,6 +551,8 @@ export default function App() {
         } else if (dx < 0 && indexRef.current < countRef.current - 1) mode = "next";
         else if (dx > 0 && indexRef.current > 0) mode = "prev";
         else mode = "resist";
+
+        if (mode !== "ignore") stage.setPointerCapture(event.pointerId);
 
         if (mode === "next") {
           place(front, sheets[indexRef.current]);
@@ -642,6 +651,9 @@ export default function App() {
     };
 
     const onKey = (event) => {
+      const rect = stage.getBoundingClientRect();
+      const middle = window.innerHeight / 2;
+      if (rect.top > middle || rect.bottom < middle) return;
       if (event.key === "ArrowRight") turn(1);
       if (event.key === "ArrowLeft") turn(-1);
     };
@@ -672,15 +684,12 @@ export default function App() {
       loadingTask?.destroy();
       pdfDoc?.destroy?.();
     };
-  }, []);
+  }, [pages, source]);
 
   const zoomed = zoomLevel > 1.01;
 
   return (
-    <main>
-      <header className="topbar">
-        <img className="logo" src="/logo.png" alt="On The Hill Karon Resort" />
-      </header>
+    <section className="volume">
       {status === "loading" && <p className="status">Loading menu…</p>}
       {status === "error" && (
         <p className="status">
@@ -743,10 +752,13 @@ export default function App() {
                 Open PDF
               </a>
             </div>
+            <p className="volume-label">{label}</p>
             <p className="hint">
               {zoomed
                 ? "Drag to look around. Press Fit to swipe between pages."
-                : "Swipe left or right to turn the page"}
+                : moreBelow
+                  ? "Swipe to turn the page. Scroll down for more menus."
+                  : "Swipe left or right to turn the page"}
             </p>
             {count > 0 && (
               <p className="pager" aria-live="polite">
@@ -756,6 +768,54 @@ export default function App() {
           </footer>
         </>
       )}
+    </section>
+  );
+}
+
+export default function App() {
+  const [books, setBooks] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${MENU_MANIFEST_PATH}?t=${Date.now()}`)
+      .then((response) => {
+        if (!response.ok) throw new Error("menu manifest missing");
+        return response.json();
+      })
+      .then((manifest) => {
+        if (cancelled) return;
+        const next = Array.isArray(manifest.books) && manifest.books.length
+          ? manifest.books
+          : manifest.pages?.length
+            ? [{ title: "Menu", src: manifest.src, pages: manifest.pages }]
+            : [];
+        if (!next.length) throw new Error("menu file missing");
+        setBooks(next);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <main>
+      <header className="topbar">
+        <img className="logo" src="/logo.png" alt="On The Hill Karon Resort" />
+      </header>
+      {failed && <p className="status">The menu could not be displayed.</p>}
+      {books?.map((book, index) => (
+        <BookView
+          key={book.id || book.title}
+          pages={book.pages}
+          source={book.src}
+          label={book.title || book.name || "Menu"}
+          moreBelow={index === 0 && books.length > 1}
+        />
+      ))}
     </main>
   );
 }
